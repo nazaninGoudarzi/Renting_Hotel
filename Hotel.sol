@@ -6,7 +6,6 @@ contract Hotel {
     address owner;
     address temp;
     struct room {
-        uint id;
         //if a room is full, this will be true
         bool full;
     }
