@@ -4,6 +4,7 @@ pragma solidity 0.8.7;
 contract Hotel {
     //declaration
     address owner;
+    address temp;
     struct room {
         uint id;
         //if a room is full, this will be true
@@ -11,11 +12,16 @@ contract Hotel {
     }
     struct customer {
         uint numOfnights;
-        uint keyCode;
+        address keyCode;
+        uint entranceTime;
+    }
+    struct forOwner {
+        address forOwnerCustomer;
     }
     mapping (uint => room) singleRoom;
     mapping (uint => room) doubleRoom;
     mapping (address => customer) registration;
+    mapping (uint => forOwner) ownerCustomer;
     uint constant public singleRoomCost = 100;
     uint constant public doubleRoomCost = 150;
     uint numOfSingle;
@@ -35,7 +41,7 @@ contract Hotel {
             doubleRoom[i].full = false;
     }
 
-    //renting function
+    // renting function
     function rent (string memory typeR , uint nights) external payable {
         if (keccak256(abi.encodePacked(typeR)) == keccak256(abi.encodePacked("Single"))) {
             require (fullSingleRoom != numOfSingle , 'We do not have any vacant single room!');
@@ -44,11 +50,13 @@ contract Hotel {
                     require (msg.value >= (nights*singleRoomCost),'Not enough money!');
                     if(msg.value >= (nights*singleRoomCost)){
                         registration[msg.sender].numOfnights = nights;
-                        registration[msg.sender].keyCode = convert((msg.sender).codehash);
+                        registration[msg.sender].keyCode = msg.sender;
+                        registration[msg.sender].entranceTime = block.timestamp;
                         singleRoom[i].full = true;
                         fullSingleRoom ++;
                         address payable customerAddress = payable(msg.sender);
                         customerAddress.transfer(msg.value - (nights*singleRoomCost));
+                        ownerCustomer[numOfCustomers].forOwnerCustomer = msg.sender;
                         numOfCustomers ++;
                         break;
                     }
@@ -62,11 +70,13 @@ contract Hotel {
                     require (msg.value >= (nights*doubleRoomCost),'Not enough money!');
                     if(msg.value >= (nights*doubleRoomCost)){
                         registration[msg.sender].numOfnights = nights;
-                        registration[msg.sender].keyCode = convert((msg.sender).codehash);
+                        registration[msg.sender].keyCode = msg.sender;
+                        registration[msg.sender].entranceTime = block.timestamp;
                         doubleRoom[i].full = true;
                         fullDoubleRoom ++;
                         address payable customerAddress = payable(msg.sender);
                         customerAddress.transfer(msg.value - (nights*doubleRoomCost));
+                        ownerCustomer[numOfCustomers].forOwnerCustomer = msg.sender;
                         numOfCustomers ++;
                         break;
                     }
@@ -75,28 +85,36 @@ contract Hotel {
         }
     }
 
-    //converting function from bytes32 to uint256
-    function convert (bytes32 x) public pure returns (uint256) {
-        uint256 y;
-        for (uint256 i = 0; i < 32; i++) {
-            uint256 c = (uint256(x) >> (i * 8)) & 0xff;
-            if (48 <= c && c <= 57)
-                y += (c - 48) * 10 ** i;
-            else
-                break;
-        }
-        return y;
-    }
-
     // welcome event
     event welcome (string message);
-    //entring the room
+
+    // entring the room
     function entring () public {
         for (uint i = 0; i < numOfCustomers; i++) {
-            require(registration[i].keyCode == convert((msg.sender).codehash),'You sould go to the hotel reception!');
-            if(registration[i].keyCode == uint256(convert((msg.sender).codehash))) {
+            require(registration[msg.sender].keyCode == msg.sender,'You sould go to the hotel reception!');
+            if(registration[msg.sender].keyCode == msg.sender) {
                 emit welcome ("Welcome to your room.");
+                break;
             }
         }
+    }
+
+    //empty or refund event
+    event empty (string emptymessage);
+    // updating function, only accessable by the owner
+    function update () public {
+        require(msg.sender == owner,'You can not access to this function');
+        for (uint i = 0; i < numOfCustomers; i++) {
+            uint currentTime = block.timestamp;
+            temp = ownerCustomer[i].forOwnerCustomer;
+            uint difference = (currentTime - (registration[temp].entranceTime)) / 60 / 60 / 24;
+            if(difference >= registration[temp].numOfnights) {
+                emit empty ("You have to empty the room or you can charge the room for more time!");
+            }
+        }
+    }
+
+    //this function enables the contract to receive funds
+    receive () external payable {
     }
 }
