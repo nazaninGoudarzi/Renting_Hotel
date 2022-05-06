@@ -1,0 +1,45 @@
+sort room;
+cons  single,double : room;
+
+sort customer;
+cons c1 : Int#Int#Int -> customer;
+map
+    getNumOfnights:customer -> Int;
+    getKeyCode:customer -> Int;
+    getEntranceTime:customer -> Int;
+var n,c,t : Int;
+eqn
+    getNumOfnights(c1(n,c,t)) = n;
+    getKeyCode(c1(n,c,t))= c;
+    getEntranceTime(c1(n,c,t))= t;
+%---------------------------
+act
+	error,acceptRenting,success,call_update,get_update,updating,endTime,continue;
+	call_rent,get_rent,renting : room#Int#Int;
+	call_entering,get_entering,enter,returnValue : Int;
+
+proc
+	user(roomType:room,nights:Int,value:Int,address:Int) = (call_rent(roomType,nights,value) + 
+				call_entering(address));
+				
+	owner = call_update;
+	
+	% first error if fullSingleRoom == numOfSingle
+	% second error if fullDoubleRoom == numOfDouble
+	Rent(roomType:room,nights:Int,value:Int) = get_rent(roomType,nights,value).
+				((roomType == single) -> (error + ((value >= (nights*100)) -> acceptRenting <> delta).
+				((value > (nights*100)) -> returnValue(value - (nights*100)) <> delta)) +
+				((roomType == double) -> (error + ((value >= (nights*100)) -> acceptRenting <> delta).
+				((value > (nights*100)) -> returnValue(value - (nights*100)) <> delta))));
+				
+	% error if we don't have such a customer
+	Entering(address:Int) = get_entering(address).(error + success);
+	
+	Update = get_update.(endTime + continue);
+
+init
+	%hide({},
+		allow({renting,enter,updating},
+			comm({call_rent|get_rent -> renting,call_entering|get_entering -> enter,
+					call_update|get_update -> updating},
+				user(single,5,520,34) || user(double,10,1500,30) || owner || Rent(single,5,520) || Rent(double,10,1500) || Entering(34) || Update));
